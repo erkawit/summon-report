@@ -55,7 +55,6 @@ export async function buildReceiptExcel(report: ReceiptReportData, items: Receip
   };
   const baseFont = { name: 'TH SarabunPSK', size: 15 };
   const boldFont = { name: 'TH SarabunPSK', size: 15, bold: true };
-  const buFont = { name: 'TH SarabunPSK', size: 15, bold: true, underline: true };
 
   ws.mergeCells('B1:S1');
   ws.getCell('B1').value = 'ศาลจังหวัดอุดรธานี';
@@ -124,8 +123,6 @@ export async function buildReceiptExcel(report: ReceiptReportData, items: Receip
   let rowIdx = startRow;
   let totalClaim = 0;
 
-  const dynCols = new Set([4, 5, 6, 7, 8, 10, 12, 14, 16, 18, 19]); // D,E,F,G,H,J,L,N,P,R,S
-
   items.forEach((it, idx) => {
     const baseRate = Number(it.base_rate) || 0;
     const claimRate = Number(it.claim_rate) || 0;
@@ -156,7 +153,7 @@ export async function buildReceiptExcel(report: ReceiptReportData, items: Receip
     for (const [col, val] of vals) {
       const cell = ws.getCell(rowIdx, col);
       cell.value = val;
-      cell.font = dynCols.has(col) ? buFont : baseFont;
+      cell.font = baseFont;
       cell.border = thinBorder;
       cell.alignment = {
         vertical: 'middle',
@@ -183,7 +180,7 @@ export async function buildReceiptExcel(report: ReceiptReportData, items: Receip
 
   for (let c = 2; c <= 19; c++) {
     const cell = ws.getCell(sumRow, c);
-    cell.font = c === 19 ? buFont : boldFont;
+    cell.font = boldFont;
     cell.border = thinBorder;
     cell.alignment = { vertical: 'middle', horizontal: c >= 18 ? 'right' : 'left' };
     if (c >= 18) cell.numFmt = '#,##0.00';
@@ -205,12 +202,12 @@ export async function buildReceiptExcel(report: ReceiptReportData, items: Receip
   const posRow = sigRow + 2;
   ws.mergeCells(`B${posRow}:I${posRow}`);
   ws.getCell(`B${posRow}`).value = payerPos;
-  ws.getCell(`B${posRow}`).font = buFont;
+  ws.getCell(`B${posRow}`).font = baseFont;
   ws.getCell(`B${posRow}`).alignment = { horizontal: 'center' };
 
   ws.mergeCells(`N${posRow}:S${posRow}`);
   ws.getCell(`N${posRow}`).value = repPos;
-  ws.getCell(`N${posRow}`).font = buFont;
+  ws.getCell(`N${posRow}`).font = baseFont;
   ws.getCell(`N${posRow}`).alignment = { horizontal: 'center' };
 
   const out = await wb.xlsx.writeBuffer();
@@ -250,8 +247,7 @@ export async function buildReceiptPdf(report: ReceiptReportData, items: ReceiptI
   const payerName = (report.payer_name || 'นางราตรี  ศรีจันทร์').trim();
   const payerPos = (report.payer_position || 'นักวิชาการเงินและบัญชีชำนาญการพิเศษ').trim();
 
-  doc.font('Sarabun').fontSize(14.5).text('นามผู้รับเงิน   ', left, 84, { continued: true });
-  doc.font('SarabunBold').text(repName, { underline: true });
+  doc.font('Sarabun').fontSize(14.5).text(`นามผู้รับเงิน   ${repName}`, left, 84);
   doc.font('Sarabun').text(`ที่อยู่   ${repAddr}`, left, 102);
   doc.text('ได้รับเงินจาก   สำนักอำนวยการประจำศาลจังหวัดอุดรธานี   ดังรายการต่อไปนี้', left, 120);
 
@@ -320,11 +316,10 @@ export async function buildReceiptPdf(report: ReceiptReportData, items: ReceiptI
     x = left;
     cols.forEach((c, idx) => {
       doc.rect(x, y, c.w, rowH).stroke();
-      doc.fillColor('#000').font(idx === 0 ? 'Sarabun' : 'SarabunBold').fontSize(12.5);
+      doc.fillColor('#000').font('Sarabun').fontSize(12.5);
       doc.text(vals[idx], x + 3, y + 2.5, {
         width: c.w - 6,
         align: c.align,
-        underline: idx > 0,
         lineBreak: false,
       });
       x += c.w;
@@ -340,7 +335,7 @@ export async function buildReceiptPdf(report: ReceiptReportData, items: ReceiptI
   doc.fillColor('#000').font('SarabunBold').fontSize(13.5);
   doc.text(`จำนวนเงิน (ตัวอักษร) ……${bahtText(totalClaim)}.....`, left + 6, y + 3, { width: leftSpan - 12 });
   doc.text(formatMoney2(totalBase), left + leftSpan + 3, y + 3, { width: cols[7].w - 6, align: 'right' });
-  doc.text(formatMoney2(totalClaim), left + leftSpan + cols[7].w + 3, y + 3, { width: cols[8].w - 6, align: 'right', underline: true });
+  doc.text(formatMoney2(totalClaim), left + leftSpan + cols[7].w + 3, y + 3, { width: cols[8].w - 6, align: 'right' });
 
   // Signatures
   const sigY = y + 42;
@@ -348,11 +343,11 @@ export async function buildReceiptPdf(report: ReceiptReportData, items: ReceiptI
   doc.font('Sarabun').fontSize(14);
   doc.text('(ลงชื่อ)....................................................... ผู้จ่ายเงิน', left, sigY, { width: half, align: 'center' });
   doc.text(`( ${payerName} )`, left, sigY + 19, { width: half, align: 'center' });
-  doc.font('SarabunBold').text(payerPos, left, sigY + 38, { width: half, align: 'center', underline: true });
+  doc.text(payerPos, left, sigY + 38, { width: half, align: 'center' });
 
-  doc.font('Sarabun').text('(ลงชื่อ)....................................................... ผู้รับเงิน', left + half, sigY, { width: half, align: 'center' });
+  doc.text('(ลงชื่อ)....................................................... ผู้รับเงิน', left + half, sigY, { width: half, align: 'center' });
   doc.text(`( ${repName} )`, left + half, sigY + 19, { width: half, align: 'center' });
-  doc.font('SarabunBold').text(repPos, left + half, sigY + 38, { width: half, align: 'center', underline: true });
+  doc.text(repPos, left + half, sigY + 38, { width: half, align: 'center' });
 
   doc.end();
   return done;

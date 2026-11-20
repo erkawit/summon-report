@@ -64,21 +64,11 @@ export async function buildMemoDocx(report: MemoReportData): Promise<Buffer> {
     officer_name: (report.officer_name || '').trim(),
     officer_position: (report.officer_position || '').trim(),
     director_name: (report.director_name || '').trim(),
-    director_acting: acting ? 'รักษาราชการแทน' : '',
-    acting_open: '',
-    acting_close: '',
+    director_acting: acting ? 'รักษาราชการแทน ' : '',
   };
 
   for (const [key, val] of Object.entries(vars)) {
     xml = xml.replaceAll(`{{${key}}}`, escapeXml(val));
-  }
-
-  // Ensure exact spacing: when acting -> exactly 1 space before ผู้อำนวยการ...; when not acting -> no leading space
-  if (acting) {
-    xml = xml.replace(/(รักษาราชการแทน<\/w:t><\/w:r>(?:<w:r[^>]*>(?:<w:rPr>.*?<\/w:rPr>)?<w:t[^>]*>\s*<\/w:t><\/w:r>)*)/s,
-      'รักษาราชการแทน</w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="TH SarabunIT๙" w:hAnsi="TH SarabunIT๙" w:cs="TH SarabunIT๙"/><w:sz w:val="34"/><w:szCs w:val="34"/><w:cs/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>');
-  } else {
-    xml = xml.replace(/(<w:t xml:space="preserve"><\/w:t><\/w:r>(?:<w:r[^>]*>(?:<w:rPr>.*?<\/w:rPr>)?<w:t[^>]*>\s*<\/w:t><\/w:r>)+)(<w:r[^>]*>(?:<w:rPr>.*?<\/w:rPr>)?<w:t[^>]*>ผู้อำน)/s, '$2');
   }
 
   zip.file('word/document.xml', xml);
@@ -170,9 +160,10 @@ export async function buildMemoPdf(report: MemoReportData): Promise<Buffer> {
   const indent = 68;
 
   // Paragraph 1
-  doc.font('IT9').fontSize(16.5).text('ตาม', marginLeft, doc.y, { indent, width: contentW, continued: true, lineGap: 2 });
-  doc.font('IT9Bold').text(orderText, { underline: true, continued: true });
-  doc.font('IT9').text(' ได้แต่งตั้งข้าพเจ้าเป็นเจ้าพนักงานศาลในการส่งคำคู่ความหรือเอกสารประจำศาลจังหวัดอุดรธานี นั้น', { underline: false });
+  doc.font('IT9').fontSize(16.5).text(
+    `ตาม${orderText} ได้แต่งตั้งข้าพเจ้าเป็นเจ้าพนักงานศาลในการส่งคำคู่ความหรือเอกสารประจำศาลจังหวัดอุดรธานี นั้น`,
+    marginLeft, doc.y, { indent, width: contentW, lineGap: 2 }
+  );
 
   doc.moveDown(0.35);
 
@@ -180,34 +171,30 @@ export async function buildMemoPdf(report: MemoReportData): Promise<Buffer> {
   if (isPaid) {
     const pStart = formatThaiDate(report.period_start);
     const pEnd = formatThaiDate(report.period_end);
-    doc.font('IT9').text('บัดนี้ ข้าพเจ้าได้ส่งคำคู่ความสำหรับรอบระหว่างวันที่ ', marginLeft, doc.y, { indent, width: contentW, continued: true, lineGap: 2 });
-    doc.font('IT9Bold').text(pStart, { underline: true, continued: true });
-    doc.font('IT9').text(' ถึงวันที่ ', { underline: false, continued: true });
-    doc.font('IT9Bold').text(pEnd, { underline: true, continued: true });
-    doc.font('IT9').text(' จำนวน ', { underline: false, continued: true });
-    doc.font('IT9Bold').text(countStr, { underline: true, continued: true });
-    doc.font('IT9').text(' เรื่อง ทั้งนี้ จะดำเนินการสแกนรายงานผลการส่งคำคู่ความเข้าสู่ระบบเทคโนโลยีสารสนเทศตามระเบียบของสำนักงานศาลยุติธรรม ได้แก่ ระบบรายงานผลการส่งหมาย (Summons) การส่งหมายในระบบคดีที่มีการยื่นฟ้องอิเล็กทรอนิกส์ (e-filling) ระบบการจัดทำสารบบและสำนวนความอิเล็กทรอนิกส์ (E-CMS) ภายใน 3 วันทำการ นับถัดจากวันเบิกจ่ายค่าส่งคำคู่ความแล้วเสร็จ', { underline: false });
+    doc.font('IT9').text(
+      `บัดนี้ ข้าพเจ้าได้ส่งคำคู่ความสำหรับรอบระหว่างวันที่ ${pStart} ถึงวันที่ ${pEnd} จำนวน ${countStr} เรื่อง ทั้งนี้ จะดำเนินการสแกนรายงานผลการส่งคำคู่ความเข้าสู่ระบบเทคโนโลยีสารสนเทศตามระเบียบของสำนักงานศาลยุติธรรม ได้แก่ ระบบรายงานผลการส่งหมาย (Summons) การส่งหมายในระบบคดีที่มีการยื่นฟ้องอิเล็กทรอนิกส์ (e-filling) ระบบการจัดทำสารบบและสำนวนความอิเล็กทรอนิกส์ (E-CMS) ภายใน 3 วันทำการ นับถัดจากวันเบิกจ่ายค่าส่งคำคู่ความแล้วเสร็จ`,
+      marginLeft, doc.y, { indent, width: contentW, lineGap: 2 }
+    );
   } else {
-    doc.font('IT9').text('บัดนี้ ข้าพเจ้า ได้ส่งคำคู่ความตามคำสั่งศาล จำนวน ', marginLeft, doc.y, { indent, width: contentW, continued: true, lineGap: 2 });
-    doc.font('IT9Bold').text(countStr, { underline: true, continued: true });
-    doc.font('IT9').text(' เรื่อง ทั้งนี้จะดำเนินการสแกนรายงานผลการส่งคำคู่ความเข้าสู่ระบบเทคโนโลยีสารสนเทศตามระเบียบของสำนักงานศาลยุติธรรม ได้แก่ ระบบรายงานผลการส่งหมาย (Summons) การส่งหมายในระบบคดีที่มีการยื่นฟ้องอิเล็กทรอนิกส์ (e-filling), ระบบการจัดทำสารบบและสำนวนความอิเล็กทรอนิกส์ (E-CMS) ภายใน 3 วันทำการ นับถัดจากวันเบิกจ่ายค่าส่งคำคู่ความแล้วเสร็จ', { underline: false });
+    doc.font('IT9').text(
+      `บัดนี้ ข้าพเจ้า ได้ส่งคำคู่ความตามคำสั่งศาล จำนวน ${countStr} เรื่อง ทั้งนี้จะดำเนินการสแกนรายงานผลการส่งคำคู่ความเข้าสู่ระบบเทคโนโลยีสารสนเทศตามระเบียบของสำนักงานศาลยุติธรรม ได้แก่ ระบบรายงานผลการส่งหมาย (Summons) การส่งหมายในระบบคดีที่มีการยื่นฟ้องอิเล็กทรอนิกส์ (e-filling), ระบบการจัดทำสารบบและสำนวนความอิเล็กทรอนิกส์ (E-CMS) ภายใน 3 วันทำการ นับถัดจากวันเบิกจ่ายค่าส่งคำคู่ความแล้วเสร็จ`,
+      marginLeft, doc.y, { indent, width: contentW, lineGap: 2 }
+    );
   }
 
   doc.moveDown(0.35);
 
   // Paragraph 3
   if (isPaid) {
-    doc.font('IT9').text('ข้าพเจ้าจึงขออนุมัติเบิกจ่ายค่าส่งคำคู่ความที่คู่ความได้วางเงิน จำนวน ', marginLeft, doc.y, { indent, width: contentW, continued: true, lineGap: 2 });
-    doc.font('IT9Bold').text(amountFmt, { underline: true, continued: true });
-    doc.font('IT9').text(' บาท (', { underline: false, continued: true });
-    doc.font('IT9Bold').text(amountText, { underline: true, continued: true });
-    doc.font('IT9').text(') รายละเอียดปรากฏตามเอกสารที่แนบมาพร้อมนี้ ข้าพเจ้า ขอรับรองว่าได้เบิกจ่ายค่าคำคู่ความถูกต้องตามระเบียบและประกาศของศาลจังหวัดอุดรธานีแล้ว', { underline: false });
+    doc.font('IT9').text(
+      `ข้าพเจ้าจึงขออนุมัติเบิกจ่ายค่าส่งคำคู่ความที่คู่ความได้วางเงิน จำนวน ${amountFmt} บาท (${amountText}) รายละเอียดปรากฏตามเอกสารที่แนบมาพร้อมนี้ ข้าพเจ้า ขอรับรองว่าได้เบิกจ่ายค่าคำคู่ความถูกต้องตามระเบียบและประกาศของศาลจังหวัดอุดรธานีแล้ว`,
+      marginLeft, doc.y, { indent, width: contentW, lineGap: 2 }
+    );
   } else {
-    doc.font('IT9').text('ข้าพเจ้าจึงขออนุมัติเบิกจ่ายค่าส่งคำคู่ความตามระเบียบคณะกรรมการบริหารศาลยุติธรรมว่าด้วยค่าตอบแทนในการส่งคำคู่ความหรือเอกสารโดยเจ้าพนักงานศาล พ.ศ.2562 จำนวน ', marginLeft, doc.y, { indent, width: contentW, continued: true, lineGap: 2 });
-    doc.font('IT9Bold').text(amountFmt, { underline: true, continued: true });
-    doc.font('IT9').text(' บาท (', { underline: false, continued: true });
-    doc.font('IT9Bold').text(amountText, { underline: true, continued: true });
-    doc.font('IT9').text(') ข้าพเจ้าขอรับรองว่าได้เบิกจ่ายค่าคำคู่ความถูกต้องตามระเบียบและประกาศของศาลจังหวัดอุดรธานีแล้ว และผลหมายดังกล่าวยังไม่เคยมีการเบิก ค่าส่งคำคู่ความ รายละเอียดปรากฏตามเอกสารที่แนบมาพร้อมนี้', { underline: false });
+    doc.font('IT9').text(
+      `ข้าพเจ้าจึงขออนุมัติเบิกจ่ายค่าส่งคำคู่ความตามระเบียบคณะกรรมการบริหารศาลยุติธรรมว่าด้วยค่าตอบแทนในการส่งคำคู่ความหรือเอกสารโดยเจ้าพนักงานศาล พ.ศ.2562 จำนวน ${amountFmt} บาท (${amountText}) ข้าพเจ้าขอรับรองว่าได้เบิกจ่ายค่าคำคู่ความถูกต้องตามระเบียบและประกาศของศาลจังหวัดอุดรธานีแล้ว และผลหมายดังกล่าวยังไม่เคยมีการเบิก ค่าส่งคำคู่ความ รายละเอียดปรากฏตามเอกสารที่แนบมาพร้อมนี้`,
+      marginLeft, doc.y, { indent, width: contentW, lineGap: 2 }
+    );
   }
 
   doc.moveDown(0.35);
@@ -218,11 +205,8 @@ export async function buildMemoPdf(report: MemoReportData): Promise<Buffer> {
   const rightColX = marginLeft + contentW * 0.45;
   const rightColW = contentW * 0.55;
 
-  doc.font('IT9').fontSize(16.5).text('(', rightColX, sigY, { width: rightColW, align: 'center', continued: true });
-  doc.font('IT9Bold').text((report.reporter_name || '').trim(), { underline: true, continued: true });
-  doc.font('IT9').text(')', { underline: false });
-
-  doc.font('IT9Bold').text((report.reporter_position || '').trim(), rightColX, sigY + 21, { width: rightColW, align: 'center', underline: true });
+  doc.font('IT9').fontSize(16.5).text(`(${(report.reporter_name || '').trim()})`, rightColX, sigY, { width: rightColW, align: 'center' });
+  doc.font('IT9').text((report.reporter_position || '').trim(), rightColX, sigY + 21, { width: rightColW, align: 'center' });
 
   // Bottom 2-column approval blocks
   const botY = Math.max(sigY + 68, 590);
@@ -235,25 +219,19 @@ export async function buildMemoPdf(report: MemoReportData): Promise<Buffer> {
   doc.text('- เห็นควรให้ส่วนคลังตรวจสอบและเบิกจ่ายต่อไป', marginLeft, botY + 40, { width: halfW });
 
   const offSigY = botY + 100;
-  doc.font('IT9').text('(', marginLeft, offSigY, { width: halfW, align: 'center', continued: true });
-  doc.font('IT9Bold').text((report.officer_name || '').trim(), { underline: true, continued: true });
-  doc.font('IT9').text(')', { underline: false });
-  doc.font('IT9Bold').text((report.officer_position || '').trim(), marginLeft, offSigY + 20, { width: halfW, align: 'center', underline: true });
+  doc.font('IT9').text(`(${(report.officer_name || '').trim()})`, marginLeft, offSigY, { width: halfW, align: 'center' });
+  doc.font('IT9').text((report.officer_position || '').trim(), marginLeft, offSigY + 20, { width: halfW, align: 'center' });
 
   // Right: Director
   doc.font('IT9Bold').fontSize(16).text('- ทราบ          - เบิกจ่ายตามระเบียบ', col2X, botY, { width: halfW });
 
-  doc.font('IT9').text('(', col2X, offSigY, { width: halfW, align: 'center', continued: true });
-  doc.font('IT9Bold').text((report.director_name || '').trim(), { underline: true, continued: true });
-  doc.font('IT9').text(')', { underline: false });
+  doc.font('IT9').text(`(${(report.director_name || '').trim()})`, col2X, offSigY, { width: halfW, align: 'center' });
 
   const acting = (report.director_acting || '').trim();
-  if (acting) {
-    doc.font('IT9Bold').text('รักษาราชการแทน', col2X, offSigY + 20, { width: halfW, align: 'center', underline: true, continued: true });
-    doc.font('IT9').text(' ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี', { underline: false });
-  } else {
-    doc.font('IT9').text('ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี', col2X, offSigY + 20, { width: halfW, align: 'center' });
-  }
+  const dirTitle = acting
+    ? 'รักษาราชการแทน ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี'
+    : 'ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี';
+  doc.font('IT9').text(dirTitle, col2X, offSigY + 20, { width: halfW, align: 'center' });
 
   doc.end();
   return done;
