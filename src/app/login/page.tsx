@@ -29,9 +29,10 @@ export default function LoginPage() {
         icon: 'success',
         title: 'เข้าสู่ระบบสำเร็จ',
         text: `ยินดีต้อนรับ ${data.user?.full_name || username}`,
-        timer: 1300,
+        timer: 1000,
         showConfirmButton: false,
       });
+      showLoading('กำลังโหลดหน้าหลัก...');
       router.push('/dashboard');
       router.refresh();
     } catch {
@@ -87,12 +88,6 @@ export default function LoginPage() {
           >
             {loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
           </button>
-
-          <div className="pt-3 border-t border-slate-100 text-xs text-slate-500 space-y-1">
-            <div className="font-semibold text-slate-600">บัญชีเริ่มต้นสำหรับทดสอบ:</div>
-            <div>ผู้ดูแลระบบ (Admin): <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">admin</code> / <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">admin1234</code></div>
-            <div>ผู้ใช้งานทั่วไป (User): <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">staff</code> / <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">staff1234</code></div>
-          </div>
         </form>
       </div>
     </div>

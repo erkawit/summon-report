@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SessionUser } from '@/lib/auth';
 import { confirmAction, showLoading, Swal } from '@/lib/swal';
 
@@ -35,6 +35,22 @@ export default function AppShell({ user, children }: { user: SessionUser; childr
   const searchParams = useSearchParams();
   const router = useRouter();
   const typeParam = searchParams.get('type');
+  const routeKey = `${pathname}?${searchParams.toString()}`;
+
+  // Close loading alert automatically once route navigation finishes
+  useEffect(() => {
+    if (Swal.isVisible() && Swal.isLoading()) {
+      Swal.close();
+    }
+  }, [routeKey]);
+
+  function handleNavClick(targetHref: string) {
+    setOpen(false);
+    const currentFull = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname;
+    if (targetHref !== currentFull) {
+      showLoading('กำลังโหลดข้อมูล...');
+    }
+  }
 
   async function handleLogout() {
     const c = await confirmAction('ยืนยันการออกจากระบบ', 'คุณต้องการออกจากระบบใช่หรือไม่?', 'ออกจากระบบ');
@@ -76,7 +92,7 @@ export default function AppShell({ user, children }: { user: SessionUser; childr
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={() => handleNavClick(item.href)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
                   active ? 'bg-brand-700 text-white font-semibold shadow-sm border-l-4 border-gold-400' : 'text-brand-100 hover:bg-brand-800 hover:text-white'
                 }`}
@@ -98,7 +114,7 @@ export default function AppShell({ user, children }: { user: SessionUser; childr
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={() => setOpen(false)}
+                    onClick={() => handleNavClick(item.href)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
                       active ? 'bg-brand-700 text-white font-semibold shadow-sm border-l-4 border-gold-400' : 'text-brand-100 hover:bg-brand-800 hover:text-white'
                     }`}

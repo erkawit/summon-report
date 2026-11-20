@@ -319,6 +319,7 @@ export default function RatesClient({ isAdmin, initialPaid, initialFree, meta }:
       }),
     });
     if (!value) return;
+    showLoading('กำลังบันทึกข้อความหัวประกาศและหมายเหตุ...');
     const res = await fetch('/api/rates/meta', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

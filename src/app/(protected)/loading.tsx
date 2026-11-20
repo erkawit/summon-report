@@ -1,4 +1,18 @@
+'use client';
+
+import { useEffect } from 'react';
+import { showLoading, Swal } from '@/lib/swal';
+
 export default function ProtectedLoading() {
+  useEffect(() => {
+    showLoading('กำลังโหลดข้อมูล...');
+    return () => {
+      if (Swal.isLoading()) {
+        Swal.close();
+      }
+    };
+  }, []);
+
   return (
     <div className="space-y-4 animate-pulse">
       <div className="h-24 rounded-2xl bg-slate-200/80" />
