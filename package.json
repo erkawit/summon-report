@@ -1,0 +1,43 @@
+{
+  "name": "summon-report",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
+    "bcryptjs": "^2.4.3",
+    "datatables.net": "^2.1.8",
+    "datatables.net-dt": "^2.1.8",
+    "datatables.net-responsive": "^3.0.3",
+    "datatables.net-responsive-dt": "^3.0.3",
+    "datatables.net-rowgroup": "^1.5.1",
+    "datatables.net-rowgroup-dt": "^1.5.1",
+    "exceljs": "^4.4.0",
+    "jquery": "^3.7.1",
+    "jszip": "^3.10.1",
+    "next": "^15.1.7",
+    "pdfkit": "^0.15.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sweetalert2": "^11.14.5",
+    "unpdf": "^0.12.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.9",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jquery": "^3.5.32",
+    "@types/node": "^22.10.0",
+    "@types/pdfkit": "^0.13.6",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2"
+  }
+}
