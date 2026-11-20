@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { alertError, confirmDelete, dtThaiLang, escHtml, toastSuccess } from '@/lib/swal';
+import { alertError, confirmDelete, dtThaiLang, escHtml, showLoading, Swal, toastInfo, toastSuccess } from '@/lib/swal';
 import { formatMoney } from '@/lib/thai';
 
 export interface ReportSummary {
@@ -120,14 +120,22 @@ export default function ReportsClient({
 
   useEffect(() => {
     const handler = async (ev: MouseEvent) => {
-      const btn = (ev.target as HTMLElement).closest('.btn-del-rep') as HTMLElement | null;
+      const target = ev.target as HTMLElement;
+      const expLink = target.closest('a[href^="/api/export"]') as HTMLAnchorElement | null;
+      if (expLink) {
+        toastInfo('กำลังสร้างไฟล์เอกสาร...');
+        return;
+      }
+      const btn = target.closest('.btn-del-rep') as HTMLElement | null;
       if (!btn) return;
       const id = Number(btn.dataset.delRep);
       const c = await confirmDelete('ต้องการลบรายงานนี้และรายการส่งหมายทั้งหมดในรอบนี้ใช่หรือไม่?');
       if (!c.isConfirmed) return;
+      showLoading('กำลังลบรายงาน...');
       const res = await fetch(`/api/reports?id=${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok || !data.ok) return alertError(data.message || 'ลบไม่สำเร็จ');
+      Swal.close();
       toastSuccess(data.message);
       await reload();
     };

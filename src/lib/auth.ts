@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { ensureDb } from './db';
 
@@ -59,7 +60,7 @@ export async function clearSessionCookie(): Promise<void> {
   store.delete(COOKIE_NAME);
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   if (!token) return null;
@@ -83,4 +84,4 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     address: String(r.address || ''),
     role: r.role === 'admin' ? 'admin' : 'user',
   };
-}
+});

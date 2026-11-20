@@ -14,6 +14,19 @@ export function toastSuccess(title: string) {
   return Toast.fire({ icon: 'success', title });
 }
 
+export function toastInfo(title: string) {
+  return Toast.fire({ icon: 'info', title });
+}
+
+export function showLoading(title = 'กำลังดำเนินการ...') {
+  return Swal.fire({
+    title,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: () => Swal.showLoading(),
+  });
+}
+
 export function alertError(text: string, title = 'ไม่สามารถดำเนินการได้') {
   return Swal.fire({ icon: 'error', title, text, confirmButtonColor: '#1c3d70', confirmButtonText: 'ตกลง' });
 }
@@ -31,6 +44,19 @@ export function confirmDelete(text = 'ต้องการลบรายกา
     confirmButtonColor: '#dc2626',
     cancelButtonColor: '#64748b',
     confirmButtonText: 'ยืนยันลบ',
+    cancelButtonText: 'ยกเลิก',
+  });
+}
+
+export function confirmAction(title: string, text: string, confirmText = 'ยืนยัน') {
+  return Swal.fire({
+    icon: 'question',
+    title,
+    text,
+    showCancelButton: true,
+    confirmButtonColor: '#1c3d70',
+    cancelButtonColor: '#64748b',
+    confirmButtonText: confirmText,
     cancelButtonText: 'ยกเลิก',
   });
 }

@@ -5,142 +5,184 @@ import path from 'path';
 import { parseExcelBuffer } from './rate-importer';
 import { bahtText } from './thai';
 
-let _sql: NeonQueryFunction<false, false> | null = null;
-let _initPromise: Promise<void> | null = null;
+const g = globalThis as unknown as {
+  __neonSql?: NeonQueryFunction<false, false>;
+  __neonInitPromise?: Promise<void>;
+  __neonReady?: boolean;
+};
 
 export function getSql(): NeonQueryFunction<false, false> {
-  if (!_sql) {
+  if (!g.__neonSql) {
     const url = process.env.DATABASE_URL;
     if (!url) {
       throw new Error('DATABASE_URL environment variable is not set');
     }
-    _sql = neon(url);
+    g.__neonSql = neon(url);
   }
-  return _sql;
+  return g.__neonSql;
 }
 
 export async function ensureDb(): Promise<NeonQueryFunction<false, false>> {
   const sql = getSql();
-  if (!_initPromise) {
-    _initPromise = initAndSeed(sql).catch((err) => {
-      _initPromise = null;
-      throw err;
-    });
+  if (g.__neonReady) return sql;
+  if (!g.__neonInitPromise) {
+    g.__neonInitPromise = initAndSeed(sql)
+      .then(() => {
+        g.__neonReady = true;
+      })
+      .catch((err) => {
+        g.__neonInitPromise = undefined;
+        throw err;
+      });
   }
-  await _initPromise;
+  await g.__neonInitPromise;
   return sql;
 }
 
 async function initAndSeed(sql: NeonQueryFunction<false, false>): Promise<void> {
-  await sql`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      full_name TEXT NOT NULL,
-      position TEXT NOT NULL DEFAULT '',
-      address TEXT NOT NULL DEFAULT '2 ถ.อธิบดี ตำบลหมากแข้ง อำเภอเมือง จังหวัดอุดรธานี',
-      role TEXT NOT NULL DEFAULT 'user',
-      is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+  // Fast-path: 1 single query check if schema is already initialized
+  const [check] = await sql`
+    SELECT to_regclass('public.reports') AS has_reports,
+           to_regclass('public.director_signers') AS has_directors
   `;
+  if (check?.has_reports && check?.has_directors) {
+    return;
+  }
 
+  if (!check?.has_reports) {
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        position TEXT NOT NULL DEFAULT '',
+        address TEXT NOT NULL DEFAULT '2 ถ.อธิบดี ตำบลหมากแข้ง อำเภอเมือง จังหวัดอุดรธานี',
+        role TEXT NOT NULL DEFAULT 'user',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS court_orders (
+        id SERIAL PRIMARY KEY,
+        order_text TEXT NOT NULL,
+        order_no TEXT NOT NULL DEFAULT '',
+        order_date TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by INTEGER NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL DEFAULT ''
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS summon_rates (
+        id SERIAL PRIMARY KEY,
+        rate_type TEXT NOT NULL CHECK (rate_type IN ('paid', 'free')),
+        district TEXT NOT NULL,
+        subdistrict TEXT NOT NULL,
+        exception_note TEXT NOT NULL DEFAULT '',
+        rate_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_rates_type_dist ON summon_rates (rate_type, district, subdistrict)`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        report_type TEXT NOT NULL CHECK (report_type IN ('free', 'paid')),
+        round_label TEXT NOT NULL DEFAULT '',
+        doc_no TEXT NOT NULL DEFAULT '',
+        doc_date TEXT NOT NULL DEFAULT '',
+        order_id INTEGER NULL,
+        order_text TEXT NOT NULL,
+        period_start TEXT NOT NULL DEFAULT '',
+        period_end TEXT NOT NULL DEFAULT '',
+        item_count INTEGER NOT NULL DEFAULT 0,
+        total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+        amount_text TEXT NOT NULL DEFAULT '',
+        reporter_user_id INTEGER NULL,
+        reporter_name TEXT NOT NULL DEFAULT '',
+        reporter_position TEXT NOT NULL DEFAULT '',
+        reporter_address TEXT NOT NULL DEFAULT '',
+        officer_name TEXT NOT NULL DEFAULT '',
+        officer_position TEXT NOT NULL DEFAULT '',
+        director_name TEXT NOT NULL DEFAULT '',
+        director_acting TEXT NOT NULL DEFAULT '',
+        payer_name TEXT NOT NULL DEFAULT '',
+        payer_position TEXT NOT NULL DEFAULT '',
+        receipt_date TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        created_by INTEGER NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS report_items (
+        id SERIAL PRIMARY KEY,
+        report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+        seq INTEGER NOT NULL DEFAULT 1,
+        case_prefix TEXT NOT NULL DEFAULT 'คดีดำ',
+        case_no TEXT NOT NULL DEFAULT '',
+        issue_date TEXT NOT NULL DEFAULT '',
+        serve_date TEXT NOT NULL DEFAULT '',
+        summon_type TEXT NOT NULL DEFAULT '',
+        recipient_role TEXT NOT NULL DEFAULT '',
+        house_no TEXT NOT NULL DEFAULT '',
+        moo TEXT NOT NULL DEFAULT '',
+        subdistrict TEXT NOT NULL DEFAULT '',
+        district TEXT NOT NULL DEFAULT '',
+        province TEXT NOT NULL DEFAULT 'จ.อุดรธานี',
+        base_rate NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        claim_rate NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        calc_rule TEXT NOT NULL DEFAULT 'full'
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_items_report ON report_items (report_id, seq)`;
+  }
+
+  // Director / Acting Director Signers table
   await sql`
-    CREATE TABLE IF NOT EXISTS court_orders (
+    CREATE TABLE IF NOT EXISTS director_signers (
       id SERIAL PRIMARY KEY,
-      order_text TEXT NOT NULL,
-      order_no TEXT NOT NULL DEFAULT '',
-      order_date TEXT NOT NULL DEFAULT '',
-      note TEXT NOT NULL DEFAULT '',
-      is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      created_by INTEGER NULL,
+      full_name TEXT NOT NULL,
+      is_acting BOOLEAN NOT NULL DEFAULT FALSE,
+      is_default BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
 
-  await sql`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL DEFAULT ''
-    )
-  `;
+  const [{ cnt: dirCnt }] = await sql`SELECT COUNT(*)::int AS cnt FROM director_signers`;
+  if (dirCnt === 0) {
+    await sql`
+      INSERT INTO director_signers (full_name, is_acting, is_default)
+      VALUES ('นางสาวเนตรดาว  เฝ้าทรัพย์', TRUE, TRUE)
+    `;
+  }
 
-  await sql`
-    CREATE TABLE IF NOT EXISTS summon_rates (
-      id SERIAL PRIMARY KEY,
-      rate_type TEXT NOT NULL CHECK (rate_type IN ('paid', 'free')),
-      district TEXT NOT NULL,
-      subdistrict TEXT NOT NULL,
-      exception_note TEXT NOT NULL DEFAULT '',
-      rate_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS idx_rates_type_dist ON summon_rates (rate_type, district, subdistrict)`;
+  if (check?.has_reports) return;
 
-  await sql`
-    CREATE TABLE IF NOT EXISTS reports (
-      id SERIAL PRIMARY KEY,
-      report_type TEXT NOT NULL CHECK (report_type IN ('free', 'paid')),
-      round_label TEXT NOT NULL DEFAULT '',
-      doc_no TEXT NOT NULL DEFAULT '',
-      doc_date TEXT NOT NULL DEFAULT '',
-      order_id INTEGER NULL,
-      order_text TEXT NOT NULL,
-      period_start TEXT NOT NULL DEFAULT '',
-      period_end TEXT NOT NULL DEFAULT '',
-      item_count INTEGER NOT NULL DEFAULT 0,
-      total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
-      amount_text TEXT NOT NULL DEFAULT '',
-      reporter_user_id INTEGER NULL,
-      reporter_name TEXT NOT NULL DEFAULT '',
-      reporter_position TEXT NOT NULL DEFAULT '',
-      reporter_address TEXT NOT NULL DEFAULT '',
-      officer_name TEXT NOT NULL DEFAULT '',
-      officer_position TEXT NOT NULL DEFAULT '',
-      director_name TEXT NOT NULL DEFAULT '',
-      director_acting TEXT NOT NULL DEFAULT '',
-      payer_name TEXT NOT NULL DEFAULT '',
-      payer_position TEXT NOT NULL DEFAULT '',
-      receipt_date TEXT NOT NULL DEFAULT '',
-      note TEXT NOT NULL DEFAULT '',
-      created_by INTEGER NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS report_items (
-      id SERIAL PRIMARY KEY,
-      report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
-      seq INTEGER NOT NULL DEFAULT 1,
-      case_prefix TEXT NOT NULL DEFAULT 'คดีดำ',
-      case_no TEXT NOT NULL DEFAULT '',
-      issue_date TEXT NOT NULL DEFAULT '',
-      serve_date TEXT NOT NULL DEFAULT '',
-      summon_type TEXT NOT NULL DEFAULT '',
-      recipient_role TEXT NOT NULL DEFAULT '',
-      house_no TEXT NOT NULL DEFAULT '',
-      moo TEXT NOT NULL DEFAULT '',
-      subdistrict TEXT NOT NULL DEFAULT '',
-      district TEXT NOT NULL DEFAULT '',
-      province TEXT NOT NULL DEFAULT 'จ.อุดรธานี',
-      base_rate NUMERIC(10, 2) NOT NULL DEFAULT 0,
-      claim_rate NUMERIC(10, 2) NOT NULL DEFAULT 0,
-      calc_rule TEXT NOT NULL DEFAULT 'full'
-    )
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS idx_items_report ON report_items (report_id, seq)`;
-
-  // Seed users
+  // Seed initial data only on brand-new DB
   const [{ cnt: userCnt }] = await sql`SELECT COUNT(*)::int AS cnt FROM users`;
   if (userCnt === 0) {
-    const adminHash = await bcrypt.hash('admin1234', 10);
-    const staffHash = await bcrypt.hash('staff1234', 10);
+    const [adminHash, staffHash] = await Promise.all([
+      bcrypt.hash('admin1234', 10),
+      bcrypt.hash('staff1234', 10),
+    ]);
     await sql`
       INSERT INTO users (username, password_hash, full_name, position, address, role)
       VALUES
@@ -150,7 +192,6 @@ async function initAndSeed(sql: NeonQueryFunction<false, false>): Promise<void> 
     `;
   }
 
-  // Seed court order
   const [{ cnt: orderCnt }] = await sql`SELECT COUNT(*)::int AS cnt FROM court_orders`;
   if (orderCnt === 0) {
     await sql`
@@ -166,7 +207,6 @@ async function initAndSeed(sql: NeonQueryFunction<false, false>): Promise<void> 
     `;
   }
 
-  // Seed settings
   const defaults: [string, string][] = [
     ['director_name', 'นางสาวเนตรดาว  เฝ้าทรัพย์'],
     ['director_acting', 'รักษาราชการแทน'],
@@ -181,11 +221,10 @@ async function initAndSeed(sql: NeonQueryFunction<false, false>): Promise<void> 
     ['free_header_3', 'อัตราค่านำส่งคำคู่ความและหรือเอกสารโดยเจ้าพนักงานศาล (หมายศาล) เริ่มใช้ตั้งแต่วันที่ 12 มกราคม 2569 เป็นต้นไป'],
     ['free_notes', 'หมายเหตุ การเบิกจ่ายค่าตอบแทนในการส่งคำคู่ความหรือเอกสารโดยเจ้าพนักงานศาล ให้เป็นไปตามระเบียบคณะกรรมการบริหารศาลยุติธรรม ว่าด้วยค่าตอบแทนในการส่งคำคู่ความหรือเอกสารโดยเจ้าพนักงานศาล พ.ศ. 2562 ฉบับแก้ไข วันที่ 26 ธันวาคม 2568'],
   ];
-  for (const [k, v] of defaults) {
-    await sql`INSERT INTO settings (key, value) VALUES (${k}, ${v}) ON CONFLICT (key) DO NOTHING`;
-  }
+  await Promise.all(
+    defaults.map(([k, v]) => sql`INSERT INTO settings (key, value) VALUES (${k}, ${v}) ON CONFLICT (key) DO NOTHING`)
+  );
 
-  // Seed summon_rates from templates/rates_seed.xlsx
   const [{ cnt: rateCnt }] = await sql`SELECT COUNT(*)::int AS cnt FROM summon_rates`;
   if (rateCnt === 0) {
     const seedPath = path.join(process.cwd(), 'templates', 'rates_seed.xlsx');
@@ -195,21 +234,20 @@ async function initAndSeed(sql: NeonQueryFunction<false, false>): Promise<void> 
       for (const rateType of ['paid', 'free'] as const) {
         const list = parsed[rateType];
         if (list.length === 0) continue;
-        // Batch insert using unnest for speed on Neon serverless
-        const districts = list.map((r) => r.district);
-        const subs = list.map((r) => r.subdistrict);
-        const notes = list.map((r) => r.exception_note);
-        const amounts = list.map((r) => r.rate_amount);
-        const sorts = list.map((r) => r.sort_order);
         await sql`
           INSERT INTO summon_rates (rate_type, district, subdistrict, exception_note, rate_amount, sort_order)
-          SELECT ${rateType}, * FROM UNNEST(${districts}::text[], ${subs}::text[], ${notes}::text[], ${amounts}::numeric[], ${sorts}::int[])
+          SELECT ${rateType}, * FROM UNNEST(
+            ${list.map((r) => r.district)}::text[],
+            ${list.map((r) => r.subdistrict)}::text[],
+            ${list.map((r) => r.exception_note)}::text[],
+            ${list.map((r) => r.rate_amount)}::numeric[],
+            ${list.map((r) => r.sort_order)}::int[]
+          )
         `;
       }
     }
   }
 
-  // Seed 2 example reports matching original files
   const [{ cnt: repCnt }] = await sql`SELECT COUNT(*)::int AS cnt FROM reports`;
   if (repCnt === 0) {
     const orderText = 'คำสั่งศาลจังหวัดอุดรธานี ที่ 28/2569 ลงวันที่  23 มีนาคม 2569';
@@ -291,4 +329,26 @@ export async function getLatestOrder(): Promise<{ id: number; order_text: string
   if (rows.length > 0) return { id: Number(rows[0].id), order_text: String(rows[0].order_text) };
   const all = await sql`SELECT id, order_text FROM court_orders ORDER BY id DESC LIMIT 1`;
   return all.length > 0 ? { id: Number(all[0].id), order_text: String(all[0].order_text) } : null;
+}
+
+export interface DirectorSigner {
+  id: number;
+  full_name: string;
+  is_acting: boolean;
+  is_default: boolean;
+}
+
+export async function getDirectorSigners(): Promise<DirectorSigner[]> {
+  const sql = await ensureDb();
+  const rows = await sql`
+    SELECT id, full_name, is_acting, is_default
+    FROM director_signers
+    ORDER BY is_default DESC, is_acting ASC, id ASC
+  `;
+  return rows.map((r) => ({
+    id: Number(r.id),
+    full_name: String(r.full_name),
+    is_acting: Boolean(r.is_acting),
+    is_default: Boolean(r.is_default),
+  }));
 }

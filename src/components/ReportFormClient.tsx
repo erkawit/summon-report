@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { alertError, Swal } from '@/lib/swal';
+import { alertError, confirmDelete, showLoading, Swal, toastInfo, toastSuccess } from '@/lib/swal';
 import { bahtText, evaluateFreeSummonItems, formatMoney } from '@/lib/thai';
+import type { DirectorSigner } from '@/lib/db';
 
 export interface SimpleRate {
   district: string;
@@ -73,10 +74,12 @@ export default function ReportFormClient({
   initial,
   freeRates,
   paidRates,
+  directors,
 }: {
   initial: ReportFormInitial;
   freeRates: SimpleRate[];
   paidRates: SimpleRate[];
+  directors: DirectorSigner[];
 }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
@@ -145,6 +148,7 @@ export default function ReportFormClient({
     }
 
     setSaving(true);
+    showLoading('กำลังบันทึกรายงานผล...');
     try {
       const payload = {
         ...form,
@@ -201,12 +205,12 @@ export default function ReportFormClient({
         </div>
         {form.id > 0 && (
           <div className="flex flex-wrap gap-1.5 shrink-0">
-            <a href={`/api/export?action=memo_docx&id=${form.id}`} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold">Word บันทึกฯ</a>
-            <a href={`/api/export?action=memo_pdf&id=${form.id}&inline=1`} target="_blank" className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">PDF บันทึกฯ</a>
+            <a href={`/api/export?action=memo_docx&id=${form.id}`} onClick={() => toastInfo('กำลังสร้างไฟล์ Word บันทึกข้อความ...')} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold">Word บันทึกฯ</a>
+            <a href={`/api/export?action=memo_pdf&id=${form.id}&inline=1`} target="_blank" onClick={() => toastInfo('กำลังสร้างไฟล์ PDF บันทึกข้อความ...')} className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">PDF บันทึกฯ</a>
             {form.report_type === 'free' && (
               <>
-                <a href={`/api/export?action=receipt_xlsx&id=${form.id}`} className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold">Excel ใบรับเงิน</a>
-                <a href={`/api/export?action=receipt_pdf&id=${form.id}&inline=1`} target="_blank" className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold">PDF ใบรับเงิน</a>
+                <a href={`/api/export?action=receipt_xlsx&id=${form.id}`} onClick={() => toastInfo('กำลังสร้างไฟล์ Excel ใบสำคัญรับเงิน...')} className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold">Excel ใบรับเงิน</a>
+                <a href={`/api/export?action=receipt_pdf&id=${form.id}&inline=1`} target="_blank" onClick={() => toastInfo('กำลังสร้างไฟล์ PDF ใบสำคัญรับเงิน...')} className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold">PDF ใบรับเงิน</a>
               </>
             )}
           </div>
@@ -368,7 +372,19 @@ export default function ReportFormClient({
                           )}
                         </td>
                         <td className="p-1.5 border border-slate-200 text-center">
-                          <button type="button" onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))} className="px-2 py-0.5 rounded-lg text-red-600 hover:bg-red-100 font-bold text-sm">&times;</button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const hasData = Boolean(it.case_no || it.house_no || it.district);
+                              if (hasData) {
+                                const c = await confirmDelete(`ต้องการลบรายการแถวที่ ${idx + 1} ใช่หรือไม่?`);
+                                if (!c.isConfirmed) return;
+                              }
+                              setItems((prev) => prev.filter((_, i) => i !== idx));
+                              toastSuccess('ลบแถวรายการเรียบร้อยแล้ว');
+                            }}
+                            className="px-2 py-0.5 rounded-lg text-red-600 hover:bg-red-100 font-bold text-sm"
+                          >&times;</button>
                         </td>
                       </tr>
                     );
@@ -488,15 +504,59 @@ export default function ReportFormClient({
               <input type="text" value={form.officer_position} onChange={(e) => setForm({ ...form, officer_position: e.target.value })} className="w-full rounded-xl border-slate-300 text-sm" />
             </div>
             <div className="hidden lg:block" />
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-สกุล ผู้อำนวยการฯ / ผู้อนุมัติ</label>
-              <input type="text" value={form.director_name} onChange={(e) => setForm({ ...form, director_name: e.target.value })} className="w-full rounded-xl border-slate-300 text-sm" />
+            <div className="md:col-span-2 lg:col-span-3 p-4 rounded-xl bg-brand-50/60 border border-brand-200/80 space-y-3">
+              <div className="text-xs font-bold text-brand-900">ผู้ลงนามอนุมัติ (ตำแหน่ง ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี)</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">เลือกผู้ลงนามจากรายชื่อในระบบ</label>
+                  <select
+                    value={directors.find((d) => d.full_name === form.director_name && Boolean(form.director_acting) === d.is_acting)?.id || ''}
+                    onChange={(e) => {
+                      const picked = directors.find((d) => d.id === Number(e.target.value));
+                      if (picked) {
+                        setForm({
+                          ...form,
+                          director_name: picked.full_name,
+                          director_acting: picked.is_acting ? 'รักษาราชการแทน' : '',
+                        });
+                      }
+                    }}
+                    className="w-full rounded-xl border-slate-300 text-sm bg-white"
+                  >
+                    <option value="">-- เลือกรายชื่อผู้ลงนาม --</option>
+                    {directors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.full_name} ({d.is_acting ? 'รักษาราชการแทน' : 'ผู้อำนวยการฯ'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-สกุล ผู้อำนวยการฯ / ผู้รักษาราชการแทน</label>
+                  <input type="text" value={form.director_name} onChange={(e) => setForm({ ...form, director_name: e.target.value })} className="w-full rounded-xl border-slate-300 text-sm bg-white" />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.director_acting)}
+                      onChange={(e) => setForm({ ...form, director_acting: e.target.checked ? 'รักษาราชการแทน' : '' })}
+                      className="rounded border-slate-300 text-brand-700"
+                    />
+                    <span className="text-sm font-semibold text-slate-700">เป็นผู้รักษาราชการแทน</span>
+                  </label>
+                </div>
+              </div>
+              <div className="text-xs text-slate-600 bg-white/80 rounded-lg px-3 py-2 border border-slate-200">
+                ตัวอย่างบรรทัดลายเซ็นในบันทึกข้อความ:{' '}
+                <span className="font-bold text-brand-900">({form.director_name || '...'})</span> —{' '}
+                {form.director_acting ? (
+                  <span><b className="underline text-amber-800">รักษาราชการแทน</b> ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี</span>
+                ) : (
+                  <span>ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี</span>
+                )}
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">ข้อความในวงเล็บ [ ] (เช่น รักษาราชการแทน — เว้นว่างได้)</label>
-              <input type="text" value={form.director_acting} onChange={(e) => setForm({ ...form, director_acting: e.target.value })} placeholder="รักษาราชการแทน" className="w-full rounded-xl border-slate-300 text-sm" />
-            </div>
-            <div className="hidden lg:block" />
             {form.report_type === 'free' && (
               <>
                 <div>

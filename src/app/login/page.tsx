@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { alertError } from '@/lib/swal';
+import { alertError, showLoading, Swal } from '@/lib/swal';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -13,6 +13,7 @@ export default function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    showLoading('กำลังตรวจสอบข้อมูลเข้าสู่ระบบ...');
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -21,9 +22,16 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        await alertError(data.message || 'เข้าสู่ระบบไม่สำเร็จ');
+        await alertError(data.message || 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง', 'เข้าสู่ระบบไม่สำเร็จ');
         return;
       }
+      await Swal.fire({
+        icon: 'success',
+        title: 'เข้าสู่ระบบสำเร็จ',
+        text: `ยินดีต้อนรับ ${data.user?.full_name || username}`,
+        timer: 1300,
+        showConfirmButton: false,
+      });
       router.push('/dashboard');
       router.refresh();
     } catch {

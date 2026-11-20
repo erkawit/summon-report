@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { ensureDb, getLatestOrder, getSettingsMap } from '@/lib/db';
+import { ensureDb, getDirectorSigners, getLatestOrder, getSettingsMap } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import ReportFormClient, { type ReportFormInitial } from '@/components/ReportFormClient';
 
@@ -10,27 +10,28 @@ export default async function ReportFormPage({
 }: {
   searchParams: Promise<{ id?: string; type?: string }>;
 }) {
-  const user = await getSessionUser();
+  const [user, sp, sql] = await Promise.all([getSessionUser(), searchParams, ensureDb()]);
   if (!user) redirect('/login');
 
-  const sp = await searchParams;
   const id = Number(sp.id) || 0;
-  const sql = await ensureDb();
-  const settings = await getSettingsMap();
-  const latestOrder = await getLatestOrder();
+  const [settings, latestOrder, directors, allRates] = await Promise.all([
+    getSettingsMap(),
+    getLatestOrder(),
+    getDirectorSigners(),
+    sql`SELECT rate_type, district, subdistrict, exception_note, rate_amount::float AS rate_amount FROM summon_rates ORDER BY sort_order ASC, id ASC`,
+  ]);
 
+  const defaultDir = directors.find((d) => d.is_default) || directors[0];
   let initial: ReportFormInitial;
 
   if (id > 0) {
-    const rows = await sql`SELECT *, total_amount::float AS total_amount FROM reports WHERE id = ${id} LIMIT 1`;
+    const [rows, itemRows] = await Promise.all([
+      sql`SELECT *, total_amount::float AS total_amount FROM reports WHERE id = ${id} LIMIT 1`,
+      sql`SELECT *, base_rate::float AS base_rate, claim_rate::float AS claim_rate FROM report_items WHERE report_id = ${id} ORDER BY seq ASC, id ASC`,
+    ]);
     if (rows.length === 0) redirect('/reports');
     const r = rows[0];
     if (user.role !== 'admin' && Number(r.created_by) !== user.id) redirect('/reports');
-
-    const itemRows = await sql`
-      SELECT *, base_rate::float AS base_rate, claim_rate::float AS claim_rate
-      FROM report_items WHERE report_id = ${id} ORDER BY seq ASC, id ASC
-    `;
 
     initial = {
       id: Number(r.id),
@@ -89,8 +90,8 @@ export default async function ReportFormPage({
       reporter_address: user.address || '2 ถ.อธิบดี ตำบลหมากแข้ง อำเภอเมือง จังหวัดอุดรธานี',
       officer_name: settings.officer_name || 'นายณัฐพงศ์  กุบแก้ว',
       officer_position: settings.officer_position || 'เจ้าพนักงานศาลยุติธรรมชำนาญการพิเศษ',
-      director_name: settings.director_name || 'นางสาวเนตรดาว  เฝ้าทรัพย์',
-      director_acting: settings.director_acting || 'รักษาราชการแทน',
+      director_name: defaultDir?.full_name || settings.director_name || 'นางสาวเนตรดาว  เฝ้าทรัพย์',
+      director_acting: defaultDir ? (defaultDir.is_acting ? 'รักษาราชการแทน' : '') : (settings.director_acting || 'รักษาราชการแทน'),
       payer_name: settings.payer_name || 'นางราตรี  ศรีจันทร์',
       payer_position: settings.payer_position || 'นักวิชาการเงินและบัญชีชำนาญการพิเศษ',
       receipt_date: '',
@@ -99,22 +100,22 @@ export default async function ReportFormPage({
     };
   }
 
-  const freeRatesRaw = await sql`SELECT district, subdistrict, exception_note, rate_amount::float AS rate_amount FROM summon_rates WHERE rate_type='free' ORDER BY sort_order ASC, id ASC`;
-  const paidRatesRaw = await sql`SELECT district, subdistrict, exception_note, rate_amount::float AS rate_amount FROM summon_rates WHERE rate_type='paid' ORDER BY sort_order ASC, id ASC`;
-
-  const mapRates = (arr: Record<string, unknown>[]) =>
-    arr.map((r) => ({
-      district: String(r.district),
-      subdistrict: String(r.subdistrict),
-      exception_note: String(r.exception_note || ''),
-      rate_amount: Number(r.rate_amount),
-    }));
+  const mapRates = (type: string) =>
+    allRates
+      .filter((r) => r.rate_type === type)
+      .map((r) => ({
+        district: String(r.district),
+        subdistrict: String(r.subdistrict),
+        exception_note: String(r.exception_note || ''),
+        rate_amount: Number(r.rate_amount),
+      }));
 
   return (
     <ReportFormClient
       initial={initial}
-      freeRates={mapRates(freeRatesRaw)}
-      paidRates={mapRates(paidRatesRaw)}
+      freeRates={mapRates('free')}
+      paidRates={mapRates('paid')}
+      directors={directors}
     />
   );
 }

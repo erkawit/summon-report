@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { alertError, alertSuccess, confirmDelete, dtThaiLang, escHtml, Swal, toastSuccess } from '@/lib/swal';
+import { alertError, alertSuccess, confirmDelete, dtThaiLang, escHtml, showLoading, Swal, toastInfo, toastSuccess } from '@/lib/swal';
 import { formatMoney } from '@/lib/thai';
 
 export interface RateItem {
@@ -196,6 +196,7 @@ export default function RatesClient({ isAdmin, initialPaid, initialFree, meta }:
       },
     });
     if (!value) return;
+    showLoading('กำลังบันทึกอัตราค่านำหมาย...');
     const res = await fetch('/api/rates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -203,16 +204,18 @@ export default function RatesClient({ isAdmin, initialPaid, initialFree, meta }:
     });
     const data = await res.json();
     if (!res.ok || !data.ok) return alertError(data.message || 'บันทึกไม่สำเร็จ');
-    toastSuccess(data.message);
+    await alertSuccess(data.message);
     await reloadType(type);
   }
 
   async function handleDeleteRate(id: number, type: 'paid' | 'free') {
     const c = await confirmDelete('ต้องการลบรายการอัตราค่านำหมายนี้ใช่หรือไม่?');
     if (!c.isConfirmed) return;
+    showLoading('กำลังลบรายการ...');
     const res = await fetch(`/api/rates?id=${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok || !data.ok) return alertError(data.message || 'ลบไม่สำเร็จ');
+    Swal.close();
     toastSuccess(data.message);
     await reloadType(type);
   }
@@ -342,10 +345,10 @@ export default function RatesClient({ isAdmin, initialPaid, initialFree, meta }:
           <p className="text-xs text-slate-500 mt-0.5">แยกตารางอัตราหมายเงิน และ อัตราหมายฟรี ชัดเจนตามอำเภอและตำบล ค้นหา/กรอง/ส่งออกได้ทันที</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href="/api/export?action=rates_xlsx&scope=all" className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
+          <a href="/api/export?action=rates_xlsx&scope=all" onClick={() => toastInfo('กำลังสร้างไฟล์ Excel อัตราค่านำหมาย...')} className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
             ส่งออก Excel (ทั้ง 2 ชีต)
           </a>
-          <a href="/api/export?action=rates_pdf&scope=all&inline=1" target="_blank" className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
+          <a href="/api/export?action=rates_pdf&scope=all&inline=1" target="_blank" onClick={() => toastInfo('กำลังสร้างไฟล์ PDF อัตราค่านำหมาย...')} className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
             ส่งออก PDF (ทั้ง 2 ตาราง)
           </a>
           {isAdmin && (

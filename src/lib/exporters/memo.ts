@@ -64,13 +64,21 @@ export async function buildMemoDocx(report: MemoReportData): Promise<Buffer> {
     officer_name: (report.officer_name || '').trim(),
     officer_position: (report.officer_position || '').trim(),
     director_name: (report.director_name || '').trim(),
-    director_acting: acting,
-    acting_open: acting ? '[' : '',
-    acting_close: acting ? ']' : '',
+    director_acting: acting ? 'รักษาราชการแทน' : '',
+    acting_open: '',
+    acting_close: '',
   };
 
   for (const [key, val] of Object.entries(vars)) {
     xml = xml.replaceAll(`{{${key}}}`, escapeXml(val));
+  }
+
+  // Ensure exact spacing: when acting -> exactly 1 space before ผู้อำนวยการ...; when not acting -> no leading space
+  if (acting) {
+    xml = xml.replace(/(รักษาราชการแทน<\/w:t><\/w:r>(?:<w:r[^>]*>(?:<w:rPr>.*?<\/w:rPr>)?<w:t[^>]*>\s*<\/w:t><\/w:r>)*)/s,
+      'รักษาราชการแทน</w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="TH SarabunIT๙" w:hAnsi="TH SarabunIT๙" w:cs="TH SarabunIT๙"/><w:sz w:val="34"/><w:szCs w:val="34"/><w:cs/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>');
+  } else {
+    xml = xml.replace(/(<w:t xml:space="preserve"><\/w:t><\/w:r>(?:<w:r[^>]*>(?:<w:rPr>.*?<\/w:rPr>)?<w:t[^>]*>\s*<\/w:t><\/w:r>)+)(<w:r[^>]*>(?:<w:rPr>.*?<\/w:rPr>)?<w:t[^>]*>ผู้อำน)/s, '$2');
   }
 
   zip.file('word/document.xml', xml);
@@ -241,10 +249,8 @@ export async function buildMemoPdf(report: MemoReportData): Promise<Buffer> {
 
   const acting = (report.director_acting || '').trim();
   if (acting) {
-    doc.font('IT9Bold').text('[', col2X, offSigY + 20, { width: halfW, align: 'center', continued: true });
-    doc.text(acting, { underline: true, continued: true });
-    doc.text('] ', { underline: false, continued: true });
-    doc.font('IT9').text('ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี', { underline: false });
+    doc.font('IT9Bold').text('รักษาราชการแทน', col2X, offSigY + 20, { width: halfW, align: 'center', underline: true, continued: true });
+    doc.font('IT9').text(' ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี', { underline: false });
   } else {
     doc.font('IT9').text('ผู้อำนวยการสำนักอำนวยการประจำศาลจังหวัดอุดรธานี', col2X, offSigY + 20, { width: halfW, align: 'center' });
   }

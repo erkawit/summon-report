@@ -6,15 +6,38 @@ import { formatMoney } from '@/lib/thai';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const user = await getSessionUser();
-  const sql = await ensureDb();
+  const [user, sql] = await Promise.all([getSessionUser(), ensureDb()]);
 
-  const [{ cnt: paidCount }] = await sql`SELECT COUNT(*)::int AS cnt FROM summon_rates WHERE rate_type='paid'`;
-  const [{ cnt: freeCount }] = await sql`SELECT COUNT(*)::int AS cnt FROM summon_rates WHERE rate_type='free'`;
-  const [{ cnt: freeRepCount, total: freeSum }] = await sql`SELECT COUNT(*)::int AS cnt, COALESCE(SUM(total_amount),0)::float AS total FROM reports WHERE report_type='free'`;
-  const [{ cnt: paidRepCount, total: paidSum }] = await sql`SELECT COUNT(*)::int AS cnt, COALESCE(SUM(total_amount),0)::float AS total FROM reports WHERE report_type='paid'`;
-  const latestOrder = await getLatestOrder();
-  const recentReports = await sql`SELECT *, total_amount::float AS total_amount FROM reports ORDER BY id DESC LIMIT 8`;
+  const [
+    [rateStats],
+    [repStats],
+    latestOrder,
+    recentReports,
+  ] = await Promise.all([
+    sql`
+      SELECT
+        COUNT(*) FILTER (WHERE rate_type='paid')::int AS paid_count,
+        COUNT(*) FILTER (WHERE rate_type='free')::int AS free_count
+      FROM summon_rates
+    `,
+    sql`
+      SELECT
+        COUNT(*) FILTER (WHERE report_type='free')::int AS free_rep_count,
+        COALESCE(SUM(total_amount) FILTER (WHERE report_type='free'), 0)::float AS free_sum,
+        COUNT(*) FILTER (WHERE report_type='paid')::int AS paid_rep_count,
+        COALESCE(SUM(total_amount) FILTER (WHERE report_type='paid'), 0)::float AS paid_sum
+      FROM reports
+    `,
+    getLatestOrder(),
+    sql`SELECT *, total_amount::float AS total_amount FROM reports ORDER BY id DESC LIMIT 8`,
+  ]);
+
+  const paidCount = Number(rateStats?.paid_count || 0);
+  const freeCount = Number(rateStats?.free_count || 0);
+  const freeRepCount = Number(repStats?.free_rep_count || 0);
+  const freeSum = Number(repStats?.free_sum || 0);
+  const paidRepCount = Number(repStats?.paid_rep_count || 0);
+  const paidSum = Number(repStats?.paid_sum || 0);
 
   return (
     <div className="space-y-6">

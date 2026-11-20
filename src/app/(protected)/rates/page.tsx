@@ -5,18 +5,17 @@ import RatesClient from '@/components/RatesClient';
 export const dynamic = 'force-dynamic';
 
 export default async function RatesPage() {
-  const user = await getSessionUser();
-  const sql = await ensureDb();
-  const settings = await getSettingsMap();
+  const [user, sql] = await Promise.all([getSessionUser(), ensureDb()]);
+  const [settings, allRows] = await Promise.all([
+    getSettingsMap(),
+    sql`
+      SELECT id, rate_type, district, subdistrict, exception_note, rate_amount::float AS rate_amount, sort_order
+      FROM summon_rates ORDER BY sort_order ASC, id ASC
+    `,
+  ]);
 
-  const paidRows = await sql`
-    SELECT id, rate_type, district, subdistrict, exception_note, rate_amount::float AS rate_amount, sort_order
-    FROM summon_rates WHERE rate_type='paid' ORDER BY sort_order ASC, id ASC
-  `;
-  const freeRows = await sql`
-    SELECT id, rate_type, district, subdistrict, exception_note, rate_amount::float AS rate_amount, sort_order
-    FROM summon_rates WHERE rate_type='free' ORDER BY sort_order ASC, id ASC
-  `;
+  const paidRows = allRows.filter((r) => r.rate_type === 'paid');
+  const freeRows = allRows.filter((r) => r.rate_type === 'free');
 
   return (
     <RatesClient

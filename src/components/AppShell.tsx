@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import type { SessionUser } from '@/lib/auth';
+import { confirmAction, showLoading, Swal } from '@/lib/swal';
 
 const navItems = [
   { href: '/dashboard', label: 'ภาพรวมระบบ', match: (p: string) => p === '/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -36,7 +37,16 @@ export default function AppShell({ user, children }: { user: SessionUser; childr
   const typeParam = searchParams.get('type');
 
   async function handleLogout() {
+    const c = await confirmAction('ยืนยันการออกจากระบบ', 'คุณต้องการออกจากระบบใช่หรือไม่?', 'ออกจากระบบ');
+    if (!c.isConfirmed) return;
+    showLoading('กำลังออกจากระบบ...');
     await fetch('/api/auth/logout', { method: 'POST' });
+    await Swal.fire({
+      icon: 'success',
+      title: 'ออกจากระบบเรียบร้อยแล้ว',
+      timer: 1100,
+      showConfirmButton: false,
+    });
     router.push('/login');
     router.refresh();
   }

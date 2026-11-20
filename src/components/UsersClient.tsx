@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { alertError, alertSuccess, confirmDelete, dtThaiLang, escHtml, Swal } from '@/lib/swal';
+import { alertError, alertSuccess, confirmDelete, dtThaiLang, escHtml, showLoading, Swal } from '@/lib/swal';
 
 export interface UserItem {
   id: number;
@@ -175,6 +175,7 @@ export default function UsersClient({ curUserId, initialUsers }: { curUserId: nu
       },
     });
     if (!value) return;
+    showLoading('กำลังบันทึกข้อมูลผู้ใช้งาน...');
     const res = await fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -189,6 +190,7 @@ export default function UsersClient({ curUserId, initialUsers }: { curUserId: nu
   async function handleDelete(id: number) {
     const c = await confirmDelete('ต้องการลบบัญชีผู้ใช้งานนี้ใช่หรือไม่?');
     if (!c.isConfirmed) return;
+    showLoading('กำลังลบผู้ใช้งาน...');
     const res = await fetch(`/api/users?id=${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok || !data.ok) return alertError(data.message);

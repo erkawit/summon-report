@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { ensureDb, getSettingsMap } from '@/lib/db';
+import { ensureDb, getDirectorSigners, getSettingsMap } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import OrdersClient from '@/components/OrdersClient';
 
@@ -10,13 +10,16 @@ export default async function OrdersPage() {
   if (!user || user.role !== 'admin') redirect('/dashboard');
 
   const sql = await ensureDb();
-  const orders = await sql`
-    SELECT o.id, o.order_text, o.order_no, o.order_date, o.note, o.created_at,
-           (SELECT COUNT(*)::int FROM reports r WHERE r.order_id = o.id) AS used_count
-    FROM court_orders o
-    ORDER BY o.id DESC
-  `;
-  const settings = await getSettingsMap();
+  const [orders, settings, directors] = await Promise.all([
+    sql`
+      SELECT o.id, o.order_text, o.order_no, o.order_date, o.note, o.created_at,
+             (SELECT COUNT(*)::int FROM reports r WHERE r.order_id = o.id) AS used_count
+      FROM court_orders o
+      ORDER BY o.id DESC
+    `,
+    getSettingsMap(),
+    getDirectorSigners(),
+  ]);
 
   return (
     <OrdersClient
@@ -29,6 +32,7 @@ export default async function OrdersPage() {
         created_at: new Date(String(o.created_at)).toLocaleString('th-TH'),
         used_count: Number(o.used_count || 0),
       }))}
+      directors={directors}
       signers={{
         director_name: settings.director_name || '',
         director_acting: settings.director_acting || '',
