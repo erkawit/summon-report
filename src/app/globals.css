@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import 'datatables.net-dt/css/dataTables.dataTables.min.css';
+@import 'datatables.net-responsive-dt/css/responsive.dataTables.min.css';
+@import 'datatables.net-rowgroup-dt/css/rowGroup.dataTables.min.css';
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+  }
+}
+
+div.dt-container .dt-search input,
+div.dt-container .dt-length select {
+  @apply rounded-lg border-slate-300 text-sm py-1.5 px-3 focus:border-brand-600 focus:ring-brand-600 bg-white;
+}
+
+div.dt-container .dt-info {
+  @apply text-sm text-slate-600;
+}
+
+div.dt-container .dt-paging .dt-paging-button {
+  @apply rounded-lg text-sm !important;
+}
+
+div.dt-container .dt-paging .dt-paging-button.current {
+  @apply bg-brand-700 text-white border-brand-700 !important;
+}
+
+table.dataTable thead th {
+  @apply bg-brand-800 text-white font-semibold text-sm border-b-0 !important;
+}
+
+table.dataTable tbody tr.dtrg-group td {
+  @apply bg-brand-50 text-brand-900 font-bold text-sm py-2 px-3 border-y border-brand-200 !important;
+}
+
+table.dataTable tbody tr:hover {
+  @apply bg-brand-50/50 !important;
+}
+
+.row-duplicate {
+  @apply bg-red-50 !important;
+}
+.row-duplicate input,
+.row-duplicate select {
+  @apply border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-red-500 !important;
+}
+
+.row-half-rate {
+  @apply bg-amber-50/70;
+}
+
+.swal2-popup {
+  border-radius: 1rem !important;
+}
